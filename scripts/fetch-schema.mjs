@@ -60,23 +60,37 @@ if (!force && fs.existsSync(outPath)) {
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 
-const res = await fetch(endpoint, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
-  body: JSON.stringify({ query: INTROSPECTION_QUERY }),
-});
+try {
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ query: INTROSPECTION_QUERY }),
+  });
 
-if (!res.ok) {
-  const text = await res.text().catch(() => "");
-  throw new Error(`schema fetch failed: ${res.status} ${res.statusText}\n${text}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    log(
+      `schema fetch failed: ${res.status} ${res.statusText}${
+        text ? `\n${text}` : ""
+      }`
+    );
+    process.exit(0);
+  }
+
+  const json = await res.json();
+  // 既存の CLI が期待する形に揃える: { data: { __schema: ... } }
+  fs.writeFileSync(outPath, JSON.stringify(json, null, 0));
+  log(`Wrote ${outPath}`);
+} catch (err) {
+  log(
+    `schema.json 生成に失敗したのでスキップしました（install は続行します）: ${
+      err instanceof Error ? err.message : String(err)
+    }`
+  );
+  process.exit(0);
 }
-
-const json = await res.json();
-// 既存の CLI が期待する形に揃える: { data: { __schema: ... } }
-fs.writeFileSync(outPath, JSON.stringify(json, null, 0));
-log(`Wrote ${outPath}`);
 
