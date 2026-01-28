@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+schema.json
+exported.yaml
+exported.json
+.DS_Store

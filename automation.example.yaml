@@ -1,0 +1,18 @@
+workflows:
+  - name: "入社アカウント作成"
+    triggerKind: "ON_MEMBER_JOIN" # WorkflowTriggerKind の enum から選ぶ
+    argumentKind: "DEFAULT" # WorkflowArgumentKind の enum から選ぶ（必要なら）
+    executionKind: "AUTO" # WorkflowExecutionKind の enum から選ぶ（必要なら）
+    viewerKind: "ALL" # WorkflowViewerKind の enum から選ぶ（必要なら）
+    status: "ENABLED" # WorkflowStatus の enum から選ぶ（必要なら）
+    schedule:
+      referenceDateKind: "JOINED_AT" # WorkflowScheduleSettingReferenceDateKind
+      differenceDate: 0
+      time: "09:00"
+    tasks:
+      - applicationId: "app_XXXXXXXX" # TODO: freee 側の Application ID
+        actionName: "create_user" # TODO: freee 側の actionName
+        params:
+          # 任意のJSON
+          foo: bar
+
