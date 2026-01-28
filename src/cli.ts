@@ -2,6 +2,7 @@ import "dotenv/config";
 import { Command } from "commander";
 import * as yaml from "js-yaml";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { loadEnv } from "./config.js";
 import { createGraphQLClient } from "./freee/graphqlClient.js";
@@ -13,12 +14,24 @@ import {
   planWorkflows,
 } from "./resources/workflows.js";
 
+function getCliVersion(): string {
+  try {
+    const pkgPath = fileURLToPath(new URL("../package.json", import.meta.url));
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+      version?: unknown;
+    };
+    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
 const program = new Command();
 
 program
   .name("freee-it")
   .description("freee IT管理 GraphQL CLI")
-  .version("0.1.0");
+  .version(getCliVersion());
 
 const INTROSPECTION_QUERY = /* GraphQL */ `
   query IntrospectionQuery {

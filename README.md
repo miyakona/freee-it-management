@@ -44,6 +44,26 @@ npm run dev -- plan -f automation.example.yaml
 npm run dev -- apply -f automation.example.yaml
 ```
 
+### IaC repo からの実行（バージョン固定 / pin）
+
+破壊的変更に巻き込まれないように、IaC 側では **必ずバージョン固定**で実行するのを推奨します。
+
+- git tag / commit SHA で固定（npm publish 前でも使える）
+
+```bash
+# tag 固定の例（例: v0.1.0）
+npx -y github:<owner>/<repo>#v0.1.0 plan -f spec.yaml
+
+# SHA 固定の例
+npx -y github:<owner>/<repo>#<commit_sha> apply -f spec.yaml --prune
+```
+
+- npm で固定（publish 後）
+
+```bash
+npx -y <package-name>@0.1.0 plan -f spec.yaml
+```
+
 ### 注意
 
 - Workflow の同定は **name の完全一致**です（現状は key を埋め込む場所が無いので）。同名が複数あるとエラーにします。

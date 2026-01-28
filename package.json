@@ -1,12 +1,17 @@
 {
   "name": "freee-it-cli",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=24",
     "npm": ">=10"
   },
+  "bin": {
+    "freee-it": "./bin/freee-it.js"
+  },
   "scripts": {
+    "prepare": "npm run build",
     "postinstall": "node scripts/fetch-schema.mjs",
     "dev": "tsx src/cli.ts",
     "build": "tsc -p tsconfig.json",
