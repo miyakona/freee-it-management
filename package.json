@@ -2,6 +2,10 @@
   "name": "freee-it-cli",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24",
+    "npm": ">=10"
+  },
   "scripts": {
     "postinstall": "node scripts/fetch-schema.mjs",
     "dev": "tsx src/cli.ts",
