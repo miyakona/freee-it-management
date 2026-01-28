@@ -104,6 +104,12 @@ function jsonStable(x: unknown): string {
   });
 }
 
+function arrayEq(a: readonly string[], b: readonly string[]) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 export async function listAllWorkflows(
   client: GraphQLClient,
 ): Promise<RemoteWorkflow[]> {
@@ -263,11 +269,15 @@ export function planWorkflows(
 
     // reorder if all desired tasks exist remotely (or will after create); keep as a separate op for apply
     if ((d.tasks ?? []).length >= 2) {
-      ops.push({
-        kind: "reorder_workflow_tasks",
-        workflowId: r.id,
-        workflowName: r.name,
-      });
+      const desiredOrder = (d.tasks ?? []).map((t) => taskKey(t));
+      const currentOrder = (r.tasks ?? []).map((t) => remoteTaskKey(t));
+      if (!arrayEq(desiredOrder, currentOrder)) {
+        ops.push({
+          kind: "reorder_workflow_tasks",
+          workflowId: r.id,
+          workflowName: r.name,
+        });
+      }
     }
   }
 
@@ -433,6 +443,8 @@ export async function applyWorkflows(
 
       const desiredOrder = (d.tasks ?? []).map((t) => taskKey(t));
       const current = [...(w.tasks ?? [])].sort((a, b) => a.order - b.order);
+      const currentOrder = current.map((t) => remoteTaskKey(t));
+      if (arrayEq(desiredOrder, currentOrder)) continue;
 
       const byKey = new Map(current.map((t) => [remoteTaskKey(t), t] as const));
       const ids: string[] = [];
