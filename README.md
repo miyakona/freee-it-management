@@ -51,8 +51,8 @@ npm run dev -- apply -f automation.example.yaml
 - git tag / commit SHA で固定（npm publish 前でも使える）
 
 ```bash
-# tag 固定の例（例: v0.1.0）
-npx -y github:<owner>/<repo>#v0.1.0 plan -f spec.yaml
+# tag 固定の例（例: v0.1.1）
+npx -y github:<owner>/<repo>#v0.1.1 plan -f spec.yaml
 
 # SHA 固定の例
 npx -y github:<owner>/<repo>#<commit_sha> apply -f spec.yaml --prune
@@ -61,7 +61,7 @@ npx -y github:<owner>/<repo>#<commit_sha> apply -f spec.yaml --prune
 - npm で固定（publish 後）
 
 ```bash
-npx -y <package-name>@0.1.0 plan -f spec.yaml
+npx -y <package-name>@0.1.1 plan -f spec.yaml
 ```
 
 ### 注意
