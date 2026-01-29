@@ -26,9 +26,16 @@ export function buildSpecSchema(schemaPath: string) {
     })
     .strict();
 
+  const WorkflowMemberFilterDesiredSchema = z
+    .object({
+      criteria: z.unknown(),
+    })
+    .strict();
+
   const WorkflowDesiredSchema = z
     .object({
       key: z.string().min(1).optional(),
+      id: z.string().min(1).optional(),
       name: z.string().min(1),
       triggerKind: zEnumFromSet(
         "WorkflowTriggerKind",
@@ -50,6 +57,7 @@ export function buildSpecSchema(schemaPath: string) {
         "WorkflowStatus",
         enums.sets.WorkflowStatus,
       ).optional(),
+      memberFilters: z.array(WorkflowMemberFilterDesiredSchema).optional(),
       schedule: WorkflowScheduleSchema.optional(),
       tasks: z.array(WorkflowTaskDesiredSchema).default([]),
     })

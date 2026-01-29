@@ -11,6 +11,10 @@ export type RemoteWorkflow = {
   viewerKind: string;
   status: string;
   order: number;
+  memberFilters: Array<{
+    id: string;
+    memberFilterCriteria: { criteria: unknown };
+  }>;
   workflowScheduleSetting: null | {
     referenceDateKind: string;
     differenceDate: number;
@@ -26,6 +30,7 @@ export type RemoteWorkflow = {
 };
 
 export type WorkflowDesired = {
+  id?: string;
   name: string;
   triggerKind: string;
   argumentKind?: string;
@@ -37,6 +42,7 @@ export type WorkflowDesired = {
     differenceDate?: number;
     time?: string;
   };
+  memberFilters?: Array<{ criteria: unknown }>;
   tasks: Array<{ applicationId: string; actionName: string; params?: unknown }>;
 };
 
@@ -58,6 +64,15 @@ export type PlanOp =
       to: string;
     }
   | { kind: "update_workflow_schedule"; id: string; name: string }
+  | {
+      kind: "update_workflow_member_filters";
+      id: string;
+      name: string;
+    }
+  | {
+      kind: "reorder_workflows";
+      workflowIds: string[];
+    }
   | {
       kind: "create_workflow_task";
       workflowId: string;
@@ -110,6 +125,18 @@ function arrayEq(a: readonly string[], b: readonly string[]) {
   return true;
 }
 
+function criteriaStable(x: unknown): string {
+  return jsonStable(x ?? null);
+}
+
+function memberFiltersStable(
+  filters: Array<{ criteria: unknown }> | undefined | null,
+): string[] {
+  return [...(filters ?? [])]
+    .map((f) => criteriaStable(f.criteria))
+    .sort((a, b) => a.localeCompare(b));
+}
+
 export async function listAllWorkflows(
   client: GraphQLClient,
 ): Promise<RemoteWorkflow[]> {
@@ -149,19 +176,26 @@ export function planWorkflows(
 ): PlanOp[] {
   const ops: PlanOp[] = [];
   const byName = new Map<string, RemoteWorkflow[]>();
-  for (const w of remote)
+  const byId = new Map<string, RemoteWorkflow>();
+  for (const w of remote) {
+    byId.set(w.id, w);
     byName.set(w.name, [...(byName.get(w.name) ?? []), w]);
+  }
 
   for (const d of desired) {
-    const candidates = byName.get(d.name) ?? [];
-    if (candidates.length === 0) {
+    const r = d.id ? byId.get(d.id) : (byName.get(d.name) ?? [])[0];
+    if (!r) {
+      if (d.id)
+        throw new Error(`Workflow id not found on server: ${d.id} (${d.name})`);
       ops.push({ kind: "create_workflow", name: d.name });
       continue;
     }
-    if (candidates.length > 1) {
-      throw new Error(`Workflow name is not unique on server: ${d.name}`);
+    if (!d.id) {
+      const candidates = byName.get(d.name) ?? [];
+      if (candidates.length > 1) {
+        throw new Error(`Workflow name is not unique on server: ${d.name}`);
+      }
     }
-    const r = candidates[0];
 
     const wfFields: string[] = [];
     if (r.name !== d.name) wfFields.push("name");
@@ -225,6 +259,23 @@ export function planWorkflows(
         ops.push({ kind: "update_workflow_schedule", id: r.id, name: r.name });
     }
 
+    if (d.memberFilters !== undefined) {
+      const rf = (r.memberFilters ?? []).map((f) => ({
+        criteria: f.memberFilterCriteria.criteria,
+      }));
+      const dStable = memberFiltersStable(d.memberFilters);
+      const rStable = memberFiltersStable(rf);
+      const changed =
+        dStable.length !== rStable.length ||
+        dStable.some((x, i) => x !== rStable[i]);
+      if (changed)
+        ops.push({
+          kind: "update_workflow_member_filters",
+          id: r.id,
+          name: r.name,
+        });
+    }
+
     // tasks
     const remoteByKey = new Map<string, RemoteWorkflow["tasks"][number]>();
     for (const t of r.tasks ?? []) remoteByKey.set(remoteTaskKey(t), t);
@@ -281,6 +332,28 @@ export function planWorkflows(
     }
   }
 
+  // reorder workflows (best-effort): match desired order first, keep the rest in current order
+  if (desired.length >= 2) {
+    const desiredIds: string[] = [];
+    const desiredNames = new Set<string>();
+    for (const d of desired) desiredNames.add(d.name);
+    const remoteById2 = new Map(remote.map((w) => [w.id, w] as const));
+    for (const d of desired) {
+      const w = d.id
+        ? remoteById2.get(d.id)
+        : remote.find((rw) => rw.name === d.name);
+      if (w) desiredIds.push(w.id);
+    }
+    const restIds = remote
+      .filter((w) => !desiredNames.has(w.name))
+      .map((w) => w.id);
+    const next = [...desiredIds, ...restIds];
+    const cur = remote.map((w) => w.id);
+    const changed =
+      next.length === cur.length && next.some((id, i) => id !== cur[i]);
+    if (changed) ops.push({ kind: "reorder_workflows", workflowIds: next });
+  }
+
   return ops;
 }
 
@@ -292,10 +365,12 @@ export async function applyWorkflows(
   // fetch fresh state
   let remote = await listAllWorkflows(client);
   const byName = new Map(remote.map((w) => [w.name, w] as const));
+  const byId = new Map(remote.map((w) => [w.id, w] as const));
 
   for (const d of desired) {
-    let w = byName.get(d.name);
+    let w = d.id ? byId.get(d.id) : byName.get(d.name);
     if (!w) {
+      if (d.id) throw new Error(`Workflow id not found on server: ${d.id}`);
       const created = await withRetry(() =>
         client.request<{
           createWorkflow: {
@@ -320,8 +395,10 @@ export async function applyWorkflows(
       // refresh single workflow by refetching all (simple and robust)
       remote = await listAllWorkflows(client);
       byName.clear();
+      byId.clear();
       for (const rw of remote) byName.set(rw.name, rw);
-      w = byName.get(d.name);
+      for (const rw of remote) byId.set(rw.id, rw);
+      w = d.id ? byId.get(d.id) : byName.get(d.name);
       if (!w)
         throw new Error(
           `Created workflow but cannot find it by name. id=${id} name=${d.name}`,
@@ -331,6 +408,10 @@ export async function applyWorkflows(
     // update workflow mutable fields
     const wfFields: Record<string, unknown> = { workflowId: w.id };
     let needsUpdateWorkflow = false;
+    if (w.name !== d.name && d.id) {
+      wfFields.name = d.name;
+      needsUpdateWorkflow = true;
+    }
     if (w.triggerKind !== d.triggerKind) {
       wfFields.triggerKind = d.triggerKind;
       needsUpdateWorkflow = true;
@@ -342,7 +423,6 @@ export async function applyWorkflows(
       wfFields.executionKind = d.executionKind;
       needsUpdateWorkflow = true;
     }
-    // name changes are not supported in our match-by-name model; keep it simple
     if (needsUpdateWorkflow) {
       await withRetry(() =>
         client.request(GQL.updateWorkflow, { input: wfFields }),
@@ -380,11 +460,100 @@ export async function applyWorkflows(
       );
     }
 
+    if (d.memberFilters !== undefined) {
+      // refresh workflow to get latest memberFilters (and tasks) before reconcile
+      remote = await listAllWorkflows(client);
+      byName.clear();
+      byId.clear();
+      for (const rw of remote) byName.set(rw.name, rw);
+      for (const rw of remote) byId.set(rw.id, rw);
+      w = d.id ? byId.get(d.id) : byName.get(d.name);
+      if (!w) throw new Error(`Workflow disappeared: ${d.name}`);
+
+      const desiredCriteria = [...(d.memberFilters ?? [])].map(
+        (x) => x.criteria,
+      );
+      const remoteFilters = [...(w.memberFilters ?? [])];
+
+      // Common case: single filter configured on both sides -> update in-place.
+      if (desiredCriteria.length === 1 && remoteFilters.length === 1) {
+        if (
+          criteriaStable(desiredCriteria[0]) !==
+          criteriaStable(remoteFilters[0].memberFilterCriteria.criteria)
+        ) {
+          await withRetry(() =>
+            client.request(GQL.updateMemberFilter, {
+              input: {
+                memberFilterId: remoteFilters[0].id,
+                criteria: desiredCriteria[0],
+              },
+            }),
+          );
+        }
+      } else if (desiredCriteria.length === 0) {
+        // If desired is empty: only delete when prune=true
+        if (opts.prune && remoteFilters.length) {
+          for (const rf of remoteFilters) {
+            await withRetry(() =>
+              client.request(GQL.deleteMemberFilter, {
+                input: { memberFilterId: rf.id },
+              }),
+            );
+          }
+        }
+      } else {
+        const desiredByKey = new Map<
+          string,
+          { criteria: unknown; count: number }
+        >();
+        for (const crit of desiredCriteria) {
+          const k = criteriaStable(crit);
+          const cur = desiredByKey.get(k);
+          if (cur) cur.count += 1;
+          else desiredByKey.set(k, { criteria: crit, count: 1 });
+        }
+
+        const remoteByKey = new Map<string, Array<{ id: string }>>();
+        for (const rf of remoteFilters) {
+          const k = criteriaStable(rf.memberFilterCriteria.criteria);
+          remoteByKey.set(k, [...(remoteByKey.get(k) ?? []), { id: rf.id }]);
+        }
+
+        // create missing filters
+        for (const [k, { criteria, count }] of desiredByKey) {
+          const remoteCount = (remoteByKey.get(k) ?? []).length;
+          for (let i = remoteCount; i < count; i++) {
+            await withRetry(() =>
+              client.request(GQL.createMemberFilter, {
+                input: { filterableId: w!.id, criteria },
+              }),
+            );
+          }
+        }
+
+        // delete extras (only when prune=true)
+        if (opts.prune) {
+          for (const [k, remoteList] of remoteByKey) {
+            const desiredCount = desiredByKey.get(k)?.count ?? 0;
+            for (let i = desiredCount; i < remoteList.length; i++) {
+              await withRetry(() =>
+                client.request(GQL.deleteMemberFilter, {
+                  input: { memberFilterId: remoteList[i].id },
+                }),
+              );
+            }
+          }
+        }
+      }
+    }
+
     // refresh workflow to get latest tasks
     remote = await listAllWorkflows(client);
     byName.clear();
+    byId.clear();
     for (const rw of remote) byName.set(rw.name, rw);
-    w = byName.get(d.name);
+    for (const rw of remote) byId.set(rw.id, rw);
+    w = d.id ? byId.get(d.id) : byName.get(d.name);
     if (!w) throw new Error(`Workflow disappeared: ${d.name}`);
 
     // tasks
@@ -437,8 +606,10 @@ export async function applyWorkflows(
     if ((d.tasks ?? []).length >= 2) {
       remote = await listAllWorkflows(client);
       byName.clear();
+      byId.clear();
       for (const rw of remote) byName.set(rw.name, rw);
-      w = byName.get(d.name);
+      for (const rw of remote) byId.set(rw.id, rw);
+      w = d.id ? byId.get(d.id) : byName.get(d.name);
       if (!w) throw new Error(`Workflow disappeared: ${d.name}`);
 
       const desiredOrder = (d.tasks ?? []).map((t) => taskKey(t));
@@ -472,6 +643,37 @@ export async function applyWorkflows(
           j -= 1;
         }
       }
+    }
+  }
+
+  // reorder workflows at the end (best-effort): desired first, keep others in current order
+  if (desired.length >= 2) {
+    remote = await listAllWorkflows(client);
+    const cur = remote.map((w) => w.id);
+
+    const byName2 = new Map(remote.map((w) => [w.name, w] as const));
+    const byId2 = new Map(remote.map((w) => [w.id, w] as const));
+
+    const desiredIds: string[] = [];
+    const desiredNames = new Set<string>();
+    for (const d of desired) desiredNames.add(d.name);
+    for (const d of desired) {
+      const w = d.id ? byId2.get(d.id) : byName2.get(d.name);
+      if (w) desiredIds.push(w.id);
+    }
+    const restIds = remote
+      .filter((w) => !desiredNames.has(w.name))
+      .map((w) => w.id);
+    const next = [...desiredIds, ...restIds];
+
+    const changed =
+      next.length === cur.length && next.some((id, i) => id !== cur[i]);
+    if (changed) {
+      await withRetry(() =>
+        client.request(GQL.updateWorkflowsOrder, {
+          input: { workflowIds: next },
+        }),
+      );
     }
   }
 }

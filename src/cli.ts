@@ -155,12 +155,19 @@ program
     const workflows = await listAllWorkflows(client);
     const exported = {
       workflows: workflows.map((w) => ({
+        id: w.id,
         name: w.name,
         triggerKind: w.triggerKind,
         argumentKind: w.argumentKind ?? undefined,
         executionKind: w.executionKind ?? undefined,
         viewerKind: w.viewerKind ?? undefined,
         status: w.status ?? undefined,
+        memberFilters:
+          (w.memberFilters ?? []).length > 0
+            ? (w.memberFilters ?? []).map((f) => ({
+                criteria: f.memberFilterCriteria.criteria,
+              }))
+            : undefined,
         schedule: w.workflowScheduleSetting
           ? {
               referenceDateKind: w.workflowScheduleSetting.referenceDateKind,

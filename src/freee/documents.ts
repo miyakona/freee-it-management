@@ -29,6 +29,12 @@ export const GQL = {
             viewerKind
             status
             order
+            memberFilters {
+              id
+              memberFilterCriteria {
+                criteria
+              }
+            }
             workflowScheduleSetting {
               referenceDateKind
               differenceDate
@@ -175,6 +181,50 @@ export const GQL = {
           id
           order
         }
+      }
+    }
+  `,
+
+  createMemberFilter: /* GraphQL */ `
+    mutation CreateMemberFilter($input: CreateMemberFilterInput!) {
+      createMemberFilter(input: $input) {
+        memberFilterEdge {
+          node {
+            id
+            memberFilterCriteria {
+              criteria
+            }
+          }
+        }
+      }
+    }
+  `,
+
+  updateMemberFilter: /* GraphQL */ `
+    mutation UpdateMemberFilter($input: UpdateMemberFilterInput!) {
+      updateMemberFilter(input: $input) {
+        memberFilter {
+          id
+          memberFilterCriteria {
+            criteria
+          }
+        }
+      }
+    }
+  `,
+
+  deleteMemberFilter: /* GraphQL */ `
+    mutation DeleteMemberFilter($input: DeleteMemberFilterInput!) {
+      deleteMemberFilter(input: $input) {
+        clientMutationId
+      }
+    }
+  `,
+
+  updateWorkflowsOrder: /* GraphQL */ `
+    mutation UpdateWorkflowsOrder($input: UpdateWorkflowsOrderInput!) {
+      updateWorkflowsOrder(input: $input) {
+        clientMutationId
       }
     }
   `,
