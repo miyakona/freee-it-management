@@ -20,9 +20,14 @@ export function buildSpecSchema(schemaPath: string) {
   const WorkflowTaskDesiredSchema = z
     .object({
       key: z.string().min(1).optional(),
-      applicationId: z.string().min(1),
+      applicationId: z.string().min(1).optional(),
+      applicationName: z.string().min(1).optional(),
       actionName: z.string().min(1),
       params: z.unknown().optional(),
+    })
+    .refine((x) => x.applicationId || x.applicationName, {
+      message: "Either applicationId or applicationName is required",
+      path: ["applicationId"],
     })
     .strict();
 

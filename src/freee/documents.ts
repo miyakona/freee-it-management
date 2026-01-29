@@ -56,6 +56,83 @@ export const GQL = {
     }
   `,
 
+  catalogApplications: /* GraphQL */ `
+    query CatalogApplications($first: Int!, $after: String) {
+      team {
+        applications(first: $first, after: $after) {
+          pageInfo {
+            endCursor
+            hasNextPage
+          }
+          nodes {
+            id
+            name
+          }
+        }
+      }
+    }
+  `,
+
+  catalogDepartments: /* GraphQL */ `
+    query CatalogDepartments($first: Int!, $after: String) {
+      team {
+        departments(first: $first, after: $after) {
+          pageInfo {
+            endCursor
+            hasNextPage
+          }
+          nodes {
+            databaseId
+            fullName
+            name
+          }
+        }
+      }
+    }
+  `,
+
+  lookupApplicationGroups: /* GraphQL */ `
+    query LookupApplicationGroups($applicationId: ID!, $keyword: String!) {
+      node(id: $applicationId) {
+        ... on Application {
+          id
+          name
+          groups(first: 50, where: { keyword: $keyword }) {
+            nodes {
+              databaseId
+              name
+            }
+          }
+        }
+      }
+    }
+  `,
+
+  listApplicationGroups: /* GraphQL */ `
+    query ListApplicationGroups(
+      $applicationId: ID!
+      $first: Int!
+      $after: String
+    ) {
+      node(id: $applicationId) {
+        ... on Application {
+          id
+          name
+          groups(first: $first, after: $after) {
+            pageInfo {
+              endCursor
+              hasNextPage
+            }
+            nodes {
+              databaseId
+              name
+            }
+          }
+        }
+      }
+    }
+  `,
+
   createWorkflow: /* GraphQL */ `
     mutation CreateWorkflow($input: CreateWorkflowInput!) {
       createWorkflow(input: $input) {

@@ -43,7 +43,12 @@ export type WorkflowDesired = {
     time?: string;
   };
   memberFilters?: Array<{ criteria: unknown }>;
-  tasks: Array<{ applicationId: string; actionName: string; params?: unknown }>;
+  tasks: Array<{
+    applicationId?: string;
+    applicationName?: string;
+    actionName: string;
+    params?: unknown;
+  }>;
 };
 
 export type PlanOp =
@@ -97,7 +102,11 @@ export type PlanOp =
       workflowName: string;
     };
 
-function taskKey(t: { applicationId: string; actionName: string }) {
+function taskKey(t: { applicationId?: string; actionName: string }) {
+  if (!t.applicationId)
+    throw new Error(
+      `task.applicationId is required for diff/apply: ${t.actionName}`,
+    );
   return `${t.applicationId}:${t.actionName}`;
 }
 
@@ -566,6 +575,10 @@ export async function applyWorkflows(
     for (const [k, dt] of desiredByKey) {
       const rt = remoteByKey.get(k);
       if (!rt) {
+        if (!dt.applicationId)
+          throw new Error(
+            `task.applicationId is required for create: workflow=${w!.name} action=${dt.actionName}`,
+          );
         await withRetry(() =>
           client.request(GQL.createWorkflowTask, {
             input: {
