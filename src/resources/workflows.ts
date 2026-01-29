@@ -181,7 +181,7 @@ export async function listAllWorkflows(
 export function planWorkflows(
   desired: WorkflowDesired[],
   remote: RemoteWorkflow[],
-  opts: { prune: boolean },
+  opts: { prune: boolean; ignoreOrder?: boolean },
 ): PlanOp[] {
   const ops: PlanOp[] = [];
   const byName = new Map<string, RemoteWorkflow[]>();
@@ -328,7 +328,7 @@ export function planWorkflows(
     }
 
     // reorder if all desired tasks exist remotely (or will after create); keep as a separate op for apply
-    if ((d.tasks ?? []).length >= 2) {
+    if (!opts.ignoreOrder && (d.tasks ?? []).length >= 2) {
       const desiredOrder = (d.tasks ?? []).map((t) => taskKey(t));
       const currentOrder = (r.tasks ?? []).map((t) => remoteTaskKey(t));
       if (!arrayEq(desiredOrder, currentOrder)) {
@@ -342,7 +342,7 @@ export function planWorkflows(
   }
 
   // reorder workflows (best-effort): match desired order first, keep the rest in current order
-  if (desired.length >= 2) {
+  if (!opts.ignoreOrder && desired.length >= 2) {
     const desiredIds: string[] = [];
     const desiredNames = new Set<string>();
     for (const d of desired) desiredNames.add(d.name);
@@ -369,7 +369,7 @@ export function planWorkflows(
 export async function applyWorkflows(
   client: GraphQLClient,
   desired: WorkflowDesired[],
-  opts: { prune: boolean },
+  opts: { prune: boolean; ignoreOrder?: boolean },
 ) {
   // fetch fresh state
   let remote = await listAllWorkflows(client);
@@ -616,7 +616,7 @@ export async function applyWorkflows(
     }
 
     // reorder (best-effort)
-    if ((d.tasks ?? []).length >= 2) {
+    if (!opts.ignoreOrder && (d.tasks ?? []).length >= 2) {
       remote = await listAllWorkflows(client);
       byName.clear();
       byId.clear();
@@ -660,7 +660,7 @@ export async function applyWorkflows(
   }
 
   // reorder workflows at the end (best-effort): desired first, keep others in current order
-  if (desired.length >= 2) {
+  if (!opts.ignoreOrder && desired.length >= 2) {
     remote = await listAllWorkflows(client);
     const cur = remote.map((w) => w.id);
 

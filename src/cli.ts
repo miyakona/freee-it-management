@@ -448,6 +448,11 @@ program
   .description("YAML/JSON を読み、差分(plan)を表示")
   .requiredOption("-f, --file <path>", "spec ファイル (yaml/json)")
   .option("--prune", "spec に無い task を削除(delete)する", false)
+  .option(
+    "--ignore-order",
+    "順序差分を無視する（workflow/task の reorder をしない）",
+    false,
+  )
   .option("--refresh-catalog", "ID解決用カタログを再取得する", false)
   .action(async (opts) => {
     const env = loadEnv();
@@ -464,7 +469,10 @@ program
     const desired = await resolveDesiredWorkflows(client, spec.workflows, {
       refreshCatalog: opts.refreshCatalog,
     });
-    const ops = planWorkflows(desired, remote, { prune: opts.prune });
+    const ops = planWorkflows(desired, remote, {
+      prune: opts.prune,
+      ignoreOrder: opts.ignoreOrder,
+    });
     if (ops.length === 0) {
       process.stdout.write("No changes.\n");
       return;
@@ -478,6 +486,11 @@ program
   .description("YAML/JSON を読み、差分を適用(apply)")
   .requiredOption("-f, --file <path>", "spec ファイル (yaml/json)")
   .option("--prune", "spec に無い task を削除(delete)する", false)
+  .option(
+    "--ignore-order",
+    "順序差分を無視する（workflow/task の reorder をしない）",
+    false,
+  )
   .option("--refresh-catalog", "ID解決用カタログを再取得する", false)
   .action(async (opts) => {
     const env = loadEnv();
@@ -493,7 +506,10 @@ program
     const desired = await resolveDesiredWorkflows(client, spec.workflows, {
       refreshCatalog: opts.refreshCatalog,
     });
-    await applyWorkflows(client, desired, { prune: opts.prune });
+    await applyWorkflows(client, desired, {
+      prune: opts.prune,
+      ignoreOrder: opts.ignoreOrder,
+    });
     process.stdout.write("Done.\n");
   });
 

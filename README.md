@@ -38,10 +38,20 @@ npm run dev -- export > exported.yaml
 npm run dev -- plan -f automation.example.yaml
 ```
 
+- 順序差分を無視して plan（reorder を出さない）
+```bash
+npm run dev -- plan -f automation.example.yaml --ignore-order
+```
+
 - apply（適用）
 
 ```bash
 npm run dev -- apply -f automation.example.yaml
+```
+
+- 順序差分を無視して apply（reorder をしない）
+```bash
+npm run dev -- apply -f automation.example.yaml --ignore-order
 ```
 
 ### IaC repo からの実行（バージョン固定 / pin）
