@@ -2,6 +2,11 @@
 
 YAML/JSON を desired state として **Workflow を plan/apply** します。
 
+### 前提
+
+- Node.js: **>= 24**（`package.json` の engines 準拠）
+- npm: **>= 10**
+
 ### セットアップ
 
 ```bash
@@ -16,7 +21,7 @@ npm i
 - `FREEE_IT_TOKEN`: Bearer token
 - `FREEE_IT_SCHEMA_PATH`: enum 検証に使う `schema.json` パス（省略可、デフォルト `./schema.json`）
 - `FREEE_IT_HTTP_TIMEOUT_MS`: request timeout（省略可、デフォルト 30000）
- - `FREEE_IT_SCHEMA_FORCE`: `1` で `schema.json` を強制再生成（postinstall 用）
+- `FREEE_IT_SCHEMA_FORCE`: `1` で `schema.json` を強制再生成（postinstall 用）
 
 ### 使い方
 
@@ -29,7 +34,35 @@ npm run dev -- schema fetch -o schema.json
 - export（現状→YAML）
 
 ```bash
-npm run dev -- export > exported.yaml
+npm run dev -- export -o exported.yaml
+```
+
+- export で内部IDをそのまま出したい（名前変換しない）
+
+```bash
+npm run dev -- export --ids -o exported.yaml
+```
+
+- export 時に名前変換用カタログを再取得したい（`.freee-it/catalog.json` を更新）
+
+```bash
+npm run dev -- export --refresh-catalog -o exported.yaml
+```
+
+- 名前->内部ID解決用カタログ操作
+
+```bash
+# カタログを再取得してローカルキャッシュに保存
+npm run dev -- catalog pull
+
+# アプリ一覧（name/id）
+npm run dev -- catalog applications
+
+# 部署一覧（fullName/databaseId）
+npm run dev -- catalog departments
+
+# アプリ内グループ一覧（name/databaseId）
+npm run dev -- catalog application-groups -a "Slack"
 ```
 
 - plan（差分表示）
@@ -68,7 +101,9 @@ npx -y github:<owner>/<repo>#v0.1.1 plan -f spec.yaml
 npx -y github:<owner>/<repo>#<commit_sha> apply -f spec.yaml --prune
 ```
 
-- npm で固定（publish 後）
+- npm で固定（**公開している場合のみ**）
+
+このリポジトリは現状 `package.json` が `private: true` なので、npm 経由の利用は想定していません（公開する場合は `private` を外して publish）。
 
 ```bash
 npx -y <package-name>@0.1.1 plan -f spec.yaml
@@ -76,7 +111,7 @@ npx -y <package-name>@0.1.1 plan -f spec.yaml
 
 ### 注意
 
-- Workflow の同定は **name の完全一致**です（現状は key を埋め込む場所が無いので）。同名が複数あるとエラーにします。
+- Workflow の同定は **id があれば id、なければ name の完全一致**です（同名が複数あるとエラーにします）。
 - `argumentKind` は schema 上 `UpdateWorkflowInput` に無く **更新できない扱い**にしています（違う場合はエラー）。
 - `tasks` の同定は `(applicationId, actionName)` の組で行います。
 - `--prune` を付けると spec に無い task を `deleteWorkflowTask` します。
